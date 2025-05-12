@@ -8,7 +8,6 @@ import sys
 import time
 from datetime import datetime
 from proxmoxer import ProxmoxAPI
-from typing import Optional
 
 
 def wait_for_task(
