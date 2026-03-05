@@ -1,3 +1,5 @@
 downloaded_iso_path/
 .venv/
 AARCHIVE/
+__pycache__
+

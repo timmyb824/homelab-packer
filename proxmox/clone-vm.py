@@ -2,6 +2,7 @@
 
 import argparse
 import contextlib
+import ipaddress
 import os
 import sys
 import time
@@ -183,20 +184,43 @@ def clone_vm(
     # Set cloud-init configuration if IP is provided
     if ip_address:
         print("\nConfiguring cloud-init network settings...")
+        if not gateway:
+            print(
+                "Warning: --ip was provided without --gateway/--gw. "
+                "Cloud-init will set a static IP without a default route."
+            )
         try:
-            ipconfig = f"ip={ip_address}"
+            # Normalize to Proxmox cloud-init format (ip/ip6 with prefix length).
+            iface = ipaddress.ip_interface(ip_address)
+            ip_key = "ip6" if iface.version == 6 else "ip"
+            gw_key = "gw6" if iface.version == 6 else "gw"
+            ipconfig = f"{ip_key}={iface.with_prefixlen}"
             if gateway:
-                ipconfig += f",gw={gateway}"
+                gw_ip = ipaddress.ip_address(gateway)
+                if gw_ip.version != iface.version:
+                    raise ValueError(
+                        f"Gateway IP version ({gw_ip.version}) does not match interface IP version ({iface.version})"
+                    )
+                ipconfig += f",{gw_key}={gw_ip.compressed}"
             config = {"ipconfig0": ipconfig}
             # Add nameserver if provided
             if nameserver:
+                ipaddress.ip_address(nameserver)
                 config["nameserver"] = nameserver
 
-            if config:
-                proxmox.nodes(node).qemu(target_id).config.put(**config)
+            proxmox.nodes(node).qemu(target_id).config.put(**config)
+            vm_config = proxmox.nodes(node).qemu(target_id).config.get()
+            applied = vm_config.get("ipconfig0", "")
+            if not applied:
+                print(
+                    "Warning: cloud-init IP config does not appear in VM config after apply "
+                    f"(attempted '{ipconfig}')"
+                )
+            else:
+                print(f"Applied cloud-init network config: {applied}")
         except Exception as e:
             print(f"Warning: Failed to set cloud-init network configuration: {str(e)}")
-            # Continue anyway as this is not critical
+            print("Continuing VM creation without cloud-init IP settings.")
 
     print("\nSetting VM resources...")
     if not set_vm_resources(proxmox, node, target_id, memory, cores, disk_size):
@@ -314,9 +338,16 @@ def main():
     )
     clone_parser.add_argument("--disk", help="Disk size (e.g., 32G)")
     clone_parser.add_argument(
-        "--ip", help="IP address with CIDR (e.g., 192.168.86.133/24)"
+        "-ip",
+        "--ip",
+        help="IP address with CIDR (e.g., 192.168.86.133/24)",
     )
-    clone_parser.add_argument("--gateway", help="Gateway IP address")
+    clone_parser.add_argument(
+        "--gateway",
+        "--gw",
+        dest="gateway",
+        help="Gateway IP address (alias: --gw)",
+    )
     clone_parser.add_argument("--nameserver", help="DNS nameserver")
     clone_parser.add_argument("--node", help="Proxmox node name (default: from env)")
 
