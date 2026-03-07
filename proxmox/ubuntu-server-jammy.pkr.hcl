@@ -34,8 +34,8 @@ source "proxmox-iso" "ubuntu-server-jammy" {
     token = "${var.proxmox_api_token_secret}"
     insecure_skip_tls_verify = true
 
-    node = "pve2"
-    vm_id = "4203"
+    node = "pve3"
+    vm_id = "3000"
     vm_name = "ubuntu-server-jammy"
     template_description = "Ubuntu Server jammy Image - 22.04"
 
@@ -64,7 +64,7 @@ source "proxmox-iso" "ubuntu-server-jammy" {
     disks {
         disk_size = "32G"
         format = "raw"
-        storage_pool = "local-zfs2"
+        storage_pool = "local-zfs3"
         type = "virtio"
     }
 
@@ -78,7 +78,7 @@ source "proxmox-iso" "ubuntu-server-jammy" {
     }
 
     cloud_init = true
-    cloud_init_storage_pool = "local-zfs2"
+    cloud_init_storage_pool = "local-zfs3"
 
     boot_command = [
         "<esc><wait>",
